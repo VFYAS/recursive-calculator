@@ -3,8 +3,7 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <errno.h>
-#include <unistd.h>
-
+#include <math.h>
 
 static ExpressionTree *
 parse_term(const char *parse_string, long long *parse_pos);
@@ -30,7 +29,7 @@ skip_spaces(const char *parse_string, long long *pos);
 
 static ExpressionTree *parsing_tree = NULL;
 
-static ExpressionTree *sep_tree = NULL;
+static ExpressionTree *separate_tree = NULL;
 
 
 static _Noreturn void
@@ -38,7 +37,7 @@ raise_error(const char *parse_string, enum ErrorCode ErrorCode)
 {
     fprintf(stderr, "Error while parsing: ");
     delete_expression_tree(parsing_tree);
-    delete_expression_tree(sep_tree);
+    delete_expression_tree(separate_tree);
     switch (ErrorCode) {
     case BRACKETS_BALANCE:
         fprintf(stderr, "The balance of brackets is broken at: %s\n", parse_string);
@@ -84,15 +83,13 @@ parse_double(const char *parse_string, long long *pos, int *success)
     long double res;
     char *end;
     res = strtold(parse_string + *pos, &end);
-    if ((*parse_string != '\0') && (end != parse_string) && (errno != ERANGE)) {
+    if ((*parse_string != '\0') && (end != parse_string + *pos) && (errno != ERANGE)) {
         *pos = end - parse_string;
         *success = 1;
         return res;
-    } else if (end == parse_string) {
+    } else {
         *success = 0;
         return 0;
-    } else {
-        raise_error(parse_string + *pos, INVALID_OPERAND);
     }
 }
 
@@ -125,7 +122,7 @@ parse_op(const char *parse_string, long long *parse_pos)
         break;
     default:
         opcode = INV_OP;
-        break;
+        return opcode;
     }
     *parse_pos += 1;
     return opcode;
@@ -138,14 +135,17 @@ parse_factor(const char *parse_string, long long *parse_pos)
     ExpressionTree *tree1 = parse_number(parse_string, parse_pos);
     long long prev_pos = *parse_pos;
     while (1) {
-        enum Operation op;
-        if ((op = parse_op(parse_string, parse_pos)) == OP_EOF) {
-            return tree1;
-        } else if (op == INV_OP) {
-            delete_expression_tree(tree1);
-            raise_error(parse_string + *parse_pos - 1, INVALID_OPERATION);
-        }
+        enum Operation op = parse_op(parse_string, parse_pos);
+
         switch (op) {
+        case OP_EOF:
+            return tree1;
+        case INV_OP:
+            delete_expression_tree(tree1);
+            if (isdigit(parse_string[*parse_pos])) {
+                raise_error(parse_string + *parse_pos, NO_OPERATION);
+            }
+            raise_error(parse_string + *parse_pos, INVALID_OPERATION);
         case OP_MULT:
         case OP_DIV:
         case OP_MOD:
@@ -154,13 +154,15 @@ parse_factor(const char *parse_string, long long *parse_pos)
             *parse_pos = prev_pos;
             return tree1;
         }
-        sep_tree = tree1;
+
+        separate_tree = tree1;
         ExpressionTree *tree2 = parse_number(parse_string, parse_pos);
         ExpressionTree *parent = calloc(1, sizeof *parent);
         if (parent == NULL) {
             delete_expression_tree(tree2);
             raise_error(NULL, MEMORY_ERROR);
         }
+
         parent->left = tree1;
         parent->right = tree2;
         parent->opcode = op;
@@ -178,14 +180,17 @@ parse_term(const char *parse_string, long long *parse_pos)
     ExpressionTree *tree1 = parse_factor(parse_string, parse_pos);
     prev_pos = *parse_pos;
     while (1) {
-        enum Operation op;
-        if ((op = parse_op(parse_string, parse_pos)) == OP_EOF) {
-            return tree1;
-        } else if (op == INV_OP) {
-            delete_expression_tree(tree1);
-            raise_error(parse_string + *parse_pos - 1, INVALID_OPERATION);
-        }
+        enum Operation op = parse_op(parse_string, parse_pos);
+
         switch (op) {
+        case OP_EOF:
+            return tree1;
+        case INV_OP:
+            delete_expression_tree(tree1);
+            if (isdigit(parse_string[*parse_pos])) {
+                raise_error(parse_string + *parse_pos, NO_OPERATION);
+            }
+            raise_error(parse_string + *parse_pos, INVALID_OPERATION);
         case OP_PLUS:
         case OP_MINUS:
             break;
@@ -194,13 +199,15 @@ parse_term(const char *parse_string, long long *parse_pos)
         default:
             return tree1;
         }
-        sep_tree = tree1;
+
+        separate_tree = tree1;
         ExpressionTree *tree2 = parse_factor(parse_string, parse_pos);
         ExpressionTree *parent = calloc(1, sizeof *parent);
         if (parent == NULL) {
             delete_expression_tree(tree2);
             raise_error(NULL, MEMORY_ERROR);
         }
+
         parent->left = tree1;
         parent->right = tree2;
         parent->opcode = op;
@@ -211,7 +218,7 @@ parse_term(const char *parse_string, long long *parse_pos)
 }
 
 static ExpressionTree *
-parse_number(const char *parse_string, long long int *parse_pos)
+parse_number(const char *parse_string, long long *parse_pos)
 {
     int success;
     ExpressionTree *res;
@@ -220,30 +227,39 @@ parse_number(const char *parse_string, long long int *parse_pos)
         *parse_pos += 1;
         ExpressionTree *t = parse_term(parse_string, parse_pos);
         skip_spaces(parse_string, parse_pos);
+
         if (parse_string[*parse_pos] != ')') {
             delete_expression_tree(t);
             raise_error(parse_string + *parse_pos, BRACKETS_BALANCE);
         }
+
         res = calloc(1, sizeof(*res));
+
         if (res == NULL) {
             delete_expression_tree(t);
             raise_error(NULL, MEMORY_ERROR);
         }
+
         res->opcode = OP_LBR;
         res->left = t;
         res->right = calloc(1, sizeof(*res->right));
         res->right->opcode = OP_RBR;
         *parse_pos += 1;
-    } else if (isdigit(parse_string[*parse_pos])) {
+    } else {
         long double number = parse_double(parse_string, parse_pos, &success);
+        if (!success) {
+            if (parse_string[*parse_pos] == ')' || !parse_string[*parse_pos]) {
+                raise_error(parse_string + *parse_pos, NO_OPERAND);
+            }
+            raise_error(parse_string + *parse_pos, INVALID_OPERAND);
+        }
         res = calloc(1, sizeof *res);
         if (res == NULL) {
             raise_error(NULL, MEMORY_ERROR);
         }
+
         res->opcode = OP_NUM;
         res->num = number;
-    } else {
-        raise_error(parse_string + *parse_pos, INVALID_OPERAND);
     }
     return res;
 }
@@ -271,6 +287,7 @@ calculate(ExpressionTree *tree)
         errno = EINVAL;
         return 0;
     }
+
     if (tree->opcode == OP_NUM) {
         return tree->num;
     }
@@ -288,13 +305,13 @@ calculate(ExpressionTree *tree)
         tree->num = tree->left->num * tree->right->num;
         break;
     case OP_DIV:
-        if (tree->right->num == 0) {
+        if (fabsl(tree->right->num) <= 1e-5) {
             raise_error(NULL, DIVISION_BY_ZERO);
         }
         tree->num = tree->left->num / tree->right->num;
         break;
     case OP_MOD:
-        if (tree->right->num == 0) {
+        if (fabsl(tree->right->num) <= 1e-5) {
             raise_error(NULL, DIVISION_BY_ZERO);
         }
         tree->num = (long long) tree->left->num % (long long) tree->right->num;
@@ -307,7 +324,7 @@ calculate(ExpressionTree *tree)
     default:
         delete_expression_tree(parsing_tree);
         fprintf(stderr, "Internal error\n");
-        _exit(INTERNAL_ERROR);
+        exit(INTERNAL_ERROR);
     }
     return tree->num;
 }
@@ -315,17 +332,17 @@ calculate(ExpressionTree *tree)
 void
 delete_expression_tree(ExpressionTree *parse_tree)
 {
-    if (parse_tree == NULL) {
-        return;
-    }
-    delete_expression_tree(parse_tree->left);
-    delete_expression_tree(parse_tree->right);
-    if (parse_tree == parsing_tree) {
-        parsing_tree = NULL;
-    }
-    if (parse_tree == sep_tree) {
-        sep_tree = NULL;
-    }
+    if (parse_tree != NULL) {
+        delete_expression_tree(parse_tree->left);
+        delete_expression_tree(parse_tree->right);
 
-    free(parse_tree);
+        if (parse_tree == parsing_tree) {
+            parsing_tree = NULL;
+        }
+        if (parse_tree == separate_tree) {
+            separate_tree = NULL;
+        }
+
+        free(parse_tree);
+    }
 }

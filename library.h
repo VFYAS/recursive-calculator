@@ -12,7 +12,8 @@ enum Operation
     OP_LBR,
     OP_RBR,
     OP_MOD,
-    INV_OP
+    INV_OP,
+    VAR_OP
 };
 
 typedef struct ExpressionTree

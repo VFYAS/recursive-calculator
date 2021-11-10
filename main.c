@@ -102,9 +102,9 @@ main(void)
         delete_expression_tree(tree);
         delete_vars();
         printf("Input string with expression:\n");
-        while (c == '\n') {
+        do {
             c = fgetc(stdin);
-        }
+        } while (c == '\n');
     }
     free(str);
     return 0;

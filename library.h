@@ -13,7 +13,7 @@ enum Operation
     OP_RBR,
     OP_MOD,
     INV_OP,
-    VAR_OP
+    OP_VAR
 };
 
 typedef struct ExpressionTree
@@ -21,6 +21,7 @@ typedef struct ExpressionTree
     enum Operation opcode;
     struct ExpressionTree *left;
     struct ExpressionTree *right;
+    char *name_var;
     long double num;
 } ExpressionTree;
 
@@ -33,7 +34,7 @@ enum ErrorCode
     INVALID_OPERAND = 0x05,
     DIVISION_BY_ZERO = 0x06,
     INTERNAL_ERROR = 0x07,
-    MEMORY_ERROR = 0x08
+    MEMORY_ERROR_CALCULATOR = 0x08
 };
 
 void

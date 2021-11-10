@@ -8,8 +8,9 @@ enum
 
 enum Errors
 {
-    MEMORY_ERR = 0x01,
-    INVALID_NAME = 0x02
+    MEMORY_ERR_VARS = 0x01,
+    INVALID_NAME = 0x02,
+    EXISTING_NAME = 0x03
 };
 
 typedef struct
@@ -35,9 +36,12 @@ int
 put_new_var(char *name, long double value);
 
 long double
-get_var(char *name, int *success);
+get_var(char *name);
 
 int
 init_vars(void);
+
+Variable *
+find_var(char *name);
 
 #endif

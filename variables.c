@@ -15,14 +15,14 @@ put_new_var(char *name, long double value)
                                                                          * sizeof(*variable_array.variables));
             if (variable_array.variables == NULL) {
                 delete_vars();
-                return MEMORY_ERR;
+                return MEMORY_ERR_VARS;
             }
         }
         variable_array.variables[variable_array.last].value = value;
-        variable_array.variables[variable_array.last].name = strdup(name);
+        variable_array.variables[variable_array.last].name = name;
         if (errno == ENOMEM) {
             delete_vars();
-            return MEMORY_ERR;
+            return MEMORY_ERR_VARS;
         }
     }
     return 0;
@@ -31,11 +31,10 @@ put_new_var(char *name, long double value)
 int
 reset_var(char *name, long double value)
 {
-    for (long long i = 0; i < variable_array.last; ++i) {
-        if (!strcmp(variable_array.variables[i].name, name)) {
-            variable_array.variables[i].value = value;
-            return 0;
-        }
+    Variable *variable;
+    if ((variable = find_var(name)) != NULL) {
+        variable->value = value;
+        return 0;
     }
     return INVALID_NAME;
 }
@@ -53,16 +52,13 @@ delete_vars(void)
 }
 
 long double
-get_var(char *name, int *success)
+get_var(char *name)
 {
-    for (long long i = 0; i < variable_array.last; ++i) {
-        if (!strcmp(variable_array.variables[i].name, name)) {
-            *success = 1;
-            return variable_array.variables[i].value;
-        }
+    Variable *variable;
+    if ((variable = find_var(name)) != NULL) {
+        return variable->value;
     }
     errno = EINVAL;
-    *success = 0;
     return INVALID_NAME;
 }
 
@@ -72,7 +68,18 @@ init_vars(void)
     variable_array.last = variable_array.length = 0;
     variable_array.variables = calloc(INIT_AMOUNT, sizeof(*variable_array.variables));
     if (errno == ENOMEM) {
-        return MEMORY_ERR;
+        return MEMORY_ERR_VARS;
     }
     return 0;
+}
+
+Variable *
+find_var(char *name)
+{
+    for (long long i = 0; i < variable_array.last; ++i) {
+        if (!strcmp(variable_array.variables[i].name, name)) {
+            return &variable_array.variables[i];
+        }
+    }
+    return NULL;
 }

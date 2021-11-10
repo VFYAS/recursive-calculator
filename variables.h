@@ -9,8 +9,7 @@ enum
 enum Errors
 {
     MEMORY_ERR_VARS = 0x01,
-    INVALID_NAME = 0x02,
-    EXISTING_NAME = 0x03
+    INVALID_NAME = 0x02
 };
 
 typedef struct
@@ -27,7 +26,7 @@ typedef struct
 } VariableArray;
 
 int
-reset_var(char *name, long double value);
+reset_var(const char *name, long double value);
 
 void
 delete_vars(void);
@@ -36,12 +35,15 @@ int
 put_new_var(char *name, long double value);
 
 long double
-get_var(char *name);
+get_var(const char *name);
 
 int
 init_vars(void);
 
 Variable *
-find_var(char *name);
+find_var(const char *name);
+
+const char **
+get_var_names(long long *length);
 
 #endif

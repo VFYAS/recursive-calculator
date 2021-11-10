@@ -8,7 +8,7 @@ static VariableArray variable_array;
 int
 put_new_var(char *name, long double value)
 {
-    if (!reset_var(name, value)) {
+    if (find_var(name) == NULL) {
         if (variable_array.last == variable_array.length) {
             variable_array.length <<= 1;
             variable_array.variables = realloc(variable_array.variables, variable_array.length
@@ -20,16 +20,19 @@ put_new_var(char *name, long double value)
         }
         variable_array.variables[variable_array.last].value = value;
         variable_array.variables[variable_array.last].name = name;
+        variable_array.last += 1;
         if (errno == ENOMEM) {
             delete_vars();
             return MEMORY_ERR_VARS;
         }
+    } else {
+        reset_var(name, value);
     }
     return 0;
 }
 
 int
-reset_var(char *name, long double value)
+reset_var(const char *name, long double value)
 {
     Variable *variable;
     if ((variable = find_var(name)) != NULL) {
@@ -52,7 +55,7 @@ delete_vars(void)
 }
 
 long double
-get_var(char *name)
+get_var(const char *name)
 {
     Variable *variable;
     if ((variable = find_var(name)) != NULL) {
@@ -65,7 +68,8 @@ get_var(char *name)
 int
 init_vars(void)
 {
-    variable_array.last = variable_array.length = 0;
+    variable_array.last = 0;
+    variable_array.length = INIT_AMOUNT;
     variable_array.variables = calloc(INIT_AMOUNT, sizeof(*variable_array.variables));
     if (errno == ENOMEM) {
         return MEMORY_ERR_VARS;
@@ -74,7 +78,7 @@ init_vars(void)
 }
 
 Variable *
-find_var(char *name)
+find_var(const char *name)
 {
     for (long long i = 0; i < variable_array.last; ++i) {
         if (!strcmp(variable_array.variables[i].name, name)) {
@@ -82,4 +86,17 @@ find_var(char *name)
         }
     }
     return NULL;
+}
+
+const char **
+get_var_names(long long *length)
+{
+    const char **var_names = calloc(variable_array.last, sizeof(*var_names));
+    if (length != NULL) {
+        *length = variable_array.last;
+    }
+    for (long long i = 0; i < variable_array.last; ++i) {
+        var_names[i] = variable_array.variables[i].name;
+    }
+    return var_names;
 }

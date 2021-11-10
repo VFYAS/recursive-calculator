@@ -12,8 +12,8 @@ enum Operation
     OP_LBR,
     OP_RBR,
     OP_MOD,
-    INV_OP,
-    OP_VAR
+    OP_VAR,
+    INV_OP
 };
 
 typedef struct ExpressionTree
@@ -41,7 +41,7 @@ void
 delete_expression_tree(ExpressionTree *parse_tree);
 
 long double
-calculate(ExpressionTree *tree);
+calculate(ExpressionTree *tree, int *success);
 
 ExpressionTree *
 syntax_analyse(const char *str);

@@ -6,6 +6,9 @@
 #include <errno.h>
 #include <math.h>
 #include <string.h>
+#include <setjmp.h>
+
+static jmp_buf ErrJump;
 
 static ExpressionTree *
 parse_term(const char *parse_string, long long *parse_pos);
@@ -57,16 +60,13 @@ raise_error(const char *parse_string, enum ErrorCode ErrorCode)
     case INVALID_OPERAND:
         fprintf(stderr, "Invalid operand at: %s\n", parse_string);
         break;
-    case DIVISION_BY_ZERO:
-        fprintf(stderr, "Division by zero!\n");
-        break;
     case MEMORY_ERROR_CALCULATOR:
         fprintf(stderr, "Out of memory\n");
         break;
     default:
         break;
     }
-    exit(ErrorCode);
+    longjmp(ErrJump, ErrorCode);
 }
 
 static void
@@ -145,7 +145,7 @@ parse_factor(const char *parse_string, long long *parse_pos)
             return tree1;
         case INV_OP:
             delete_expression_tree(tree1);
-            if (isdigit(parse_string[*parse_pos])) {
+            if (isalnum(parse_string[*parse_pos])) {
                 raise_error(parse_string + *parse_pos, NO_OPERATION);
             }
             raise_error(parse_string + *parse_pos, INVALID_OPERATION);
@@ -263,6 +263,8 @@ parse_number(const char *parse_string, long long *parse_pos)
             free(name);
             raise_error(NULL, MEMORY_ERROR_CALCULATOR);
         }
+        *parse_pos += length;
+
         res = calloc(1, sizeof *res);
         if (res == NULL) {
             raise_error(NULL, MEMORY_ERROR_CALCULATOR);
@@ -295,31 +297,34 @@ syntax_analyse(const char *str)
 {
     long long pos = 0;
     init_vars();
-    parsing_tree = parse_term(str, &pos);
-    skip_spaces(str, &pos);
-    if (str[pos] != '\0') {
-        if (str[pos] == ')') {
-            raise_error(str + pos, BRACKETS_BALANCE);
-        } else {
-            raise_error(str + pos, INVALID_OPERATION);
+    if (setjmp(ErrJump) == 0) {
+        parsing_tree = parse_term(str, &pos);
+        skip_spaces(str, &pos);
+        if (str[pos] != '\0') {
+            if (str[pos] == ')') {
+                raise_error(str + pos, BRACKETS_BALANCE);
+            } else {
+                raise_error(str + pos, INVALID_OPERATION);
+            }
         }
+        return parsing_tree;
+    } else {
+        return NULL;
     }
-    return parsing_tree;
 }
 
-long double
-calculate(ExpressionTree *tree)
+static long double
+exec_calculation(ExpressionTree *tree)
 {
     if (tree == NULL) {
-        errno = EINVAL;
         return 0;
     }
 
     if (tree->opcode == OP_NUM) {
         return tree->num;
     }
-    calculate(tree->left);
-    calculate(tree->right);
+    exec_calculation(tree->left);
+    exec_calculation(tree->right);
 
     switch (tree->opcode) {
     case OP_PLUS:
@@ -333,13 +338,15 @@ calculate(ExpressionTree *tree)
         break;
     case OP_DIV:
         if (fabsl(tree->right->num) <= 1e-5) {
-            raise_error(NULL, DIVISION_BY_ZERO);
+            fprintf(stderr, "Division by zero!\n");
+            longjmp(ErrJump, DIVISION_BY_ZERO);
         }
         tree->num = tree->left->num / tree->right->num;
         break;
     case OP_MOD:
         if (fabsl(tree->right->num) <= 1e-5) {
-            raise_error(NULL, DIVISION_BY_ZERO);
+            fprintf(stderr, "Division by zero!\n");
+            longjmp(ErrJump, DIVISION_BY_ZERO);
         }
         tree->num = (long long) tree->left->num % (long long) tree->right->num;
         break;
@@ -351,7 +358,10 @@ calculate(ExpressionTree *tree)
     case OP_VAR:
         tree->num = get_var(tree->name_var);
         if (errno == EINVAL) {
-            raise_error(NULL, INTERNAL_ERROR);
+            delete_expression_tree(parsing_tree);
+            delete_vars();
+            fprintf(stderr, "Internal error\n");
+            exit(INTERNAL_ERROR);
         }
         break;
     default:
@@ -361,6 +371,18 @@ calculate(ExpressionTree *tree)
         exit(INTERNAL_ERROR);
     }
     return tree->num;
+}
+
+long double
+calculate(ExpressionTree *tree, int *success)
+{
+    if (setjmp(ErrJump) == 0) {
+        *success = 1;
+        return exec_calculation(tree);
+    } else {
+        *success = 0;
+        return 0;
+    }
 }
 
 void

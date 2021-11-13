@@ -1,21 +1,26 @@
+#include "variables.h"
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include "variables.h"
+#include <stdio.h>
 
 static VariableArray variable_array;
 
+static int
+cmpstring(const void *a, const void *b);
+
 int
-put_new_var(char *name, long double value)
+put_var(char *name, double value)
 {
-    if (find_var(name) == NULL) {
+    Variable *found;
+    if ((found = find_var(name)) == NULL) {
         if (variable_array.last == variable_array.length) {
             variable_array.length <<= 1;
             variable_array.variables = realloc(variable_array.variables, variable_array.length
                                                                          * sizeof(*variable_array.variables));
             if (variable_array.variables == NULL) {
                 delete_vars();
-                return MEMORY_ERR_VARS;
+                return ERR_IN_VAR;
             }
         }
         variable_array.variables[variable_array.last].value = value;
@@ -23,23 +28,12 @@ put_new_var(char *name, long double value)
         variable_array.last += 1;
         if (errno == ENOMEM) {
             delete_vars();
-            return MEMORY_ERR_VARS;
+            return ERR_IN_VAR;
         }
     } else {
-        reset_var(name, value);
+        found->value = value;
     }
     return 0;
-}
-
-int
-reset_var(const char *name, long double value)
-{
-    Variable *variable;
-    if ((variable = find_var(name)) != NULL) {
-        variable->value = value;
-        return 0;
-    }
-    return INVALID_NAME;
 }
 
 void
@@ -54,7 +48,7 @@ delete_vars(void)
     variable_array.variables = NULL;
 }
 
-long double
+double
 get_var(const char *name)
 {
     Variable *variable;
@@ -62,7 +56,7 @@ get_var(const char *name)
         return variable->value;
     }
     errno = EINVAL;
-    return INVALID_NAME;
+    return 0;
 }
 
 int
@@ -72,7 +66,7 @@ init_vars(void)
     variable_array.length = INIT_AMOUNT;
     variable_array.variables = calloc(INIT_AMOUNT, sizeof(*variable_array.variables));
     if (errno == ENOMEM) {
-        return MEMORY_ERR_VARS;
+        return ERR_IN_VAR;
     }
     return 0;
 }
@@ -88,15 +82,43 @@ find_var(const char *name)
     return NULL;
 }
 
-const char **
-get_var_names(long long *length)
+static int
+cmpstring(const void *a, const void *b)
 {
-    const char **var_names = calloc(variable_array.last, sizeof(*var_names));
-    if (length != NULL) {
-        *length = variable_array.last;
-    }
+    return strcmp(((Variable *) a)->name, ((Variable *) b)->name);
+}
+
+long long
+request_vars(void)
+{
+    qsort(variable_array.variables, variable_array.last, sizeof(*(variable_array.variables)),
+          cmpstring);
     for (long long i = 0; i < variable_array.last; ++i) {
-        var_names[i] = variable_array.variables[i].name;
+        char *value_str = calloc(INIT_AMOUNT, sizeof *value_str), *end;
+        if (value_str == NULL) {
+            fprintf(stderr, "Not enough memory!\n");
+            return ERR_IN_VAR;
+        }
+        long long idx = 0, len = INIT_AMOUNT;
+        double value;
+        int c;
+        while ((c = fgetc(stdin)) != '\n' && c != EOF) {
+            if (idx == len) {
+                len <<= 1;
+                value_str = realloc(value_str, len * sizeof *value_str);
+            }
+            value_str[idx++] = (char) c;
+        }
+        value_str[idx] = '\0';
+        value = strtod(value_str, &end);
+        if (value_str[0] == '\0' || *end != '\0' || errno == ERANGE) {
+            fprintf(stderr, "Error while entering a variable value!\n");
+            free(value_str);
+            return ERR_IN_VAR;
+        } else {
+            free(value_str);
+            variable_array.variables[i].value = value;
+        }
     }
-    return var_names;
+    return variable_array.last;
 }

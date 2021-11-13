@@ -19,7 +19,7 @@ parse_factor(const char *parse_string, long long *parse_pos);
 static ExpressionTree *
 parse_number(const char *parse_string, long long *parse_pos);
 
-static long double
+static double
 parse_double(const char *parse_string, long long *pos, int *success);
 
 static enum Operation
@@ -30,6 +30,9 @@ raise_error(const char *parse_string, enum ErrorCode ErrorCode);
 
 static void
 skip_spaces(const char *parse_string, long long *pos);
+
+static double
+exec_calculation(ExpressionTree *tree);
 
 
 static ExpressionTree *parsing_tree = NULL;
@@ -60,8 +63,11 @@ raise_error(const char *parse_string, enum ErrorCode ErrorCode)
     case INVALID_OPERAND:
         fprintf(stderr, "Invalid operand at: %s\n", parse_string);
         break;
-    case MEMORY_ERROR_CALCULATOR:
+    case MEMORY_ERROR:
         fprintf(stderr, "Out of memory\n");
+        break;
+    case INVALID_VAR:
+        fprintf(stderr, "Invalid variable at: %s\n", parse_string);
         break;
     default:
         break;
@@ -79,13 +85,13 @@ skip_spaces(const char *parse_string, long long *pos)
     *pos = auto_pos;
 }
 
-static long double
+static double
 parse_double(const char *parse_string, long long *pos, int *success)
 {
     skip_spaces(parse_string, pos);
-    long double res;
+    double res;
     char *end;
-    res = strtold(parse_string + *pos, &end);
+    res = strtod(parse_string + *pos, &end);
     if ((*parse_string != '\0') && (end != parse_string + *pos) && (errno != ERANGE)) {
         *pos = end - parse_string;
         *success = 1;
@@ -116,9 +122,6 @@ parse_op(const char *parse_string, long long *parse_pos)
         break;
     case '/':
         opcode = OP_DIV;
-        break;
-    case '%':
-        opcode = OP_MOD;
         break;
     case ')':
         opcode = OP_RBR;
@@ -151,7 +154,6 @@ parse_factor(const char *parse_string, long long *parse_pos)
             raise_error(parse_string + *parse_pos, INVALID_OPERATION);
         case OP_MULT:
         case OP_DIV:
-        case OP_MOD:
             break;
         default:
             *parse_pos = prev_pos;
@@ -163,7 +165,7 @@ parse_factor(const char *parse_string, long long *parse_pos)
         ExpressionTree *parent = calloc(1, sizeof *parent);
         if (parent == NULL) {
             delete_expression_tree(tree2);
-            raise_error(NULL, MEMORY_ERROR_CALCULATOR);
+            raise_error(NULL, MEMORY_ERROR);
         }
 
         parent->left = tree1;
@@ -208,7 +210,7 @@ parse_term(const char *parse_string, long long *parse_pos)
         ExpressionTree *parent = calloc(1, sizeof *parent);
         if (parent == NULL) {
             delete_expression_tree(tree2);
-            raise_error(NULL, MEMORY_ERROR_CALCULATOR);
+            raise_error(NULL, MEMORY_ERROR);
         }
 
         parent->left = tree1;
@@ -240,7 +242,7 @@ parse_number(const char *parse_string, long long *parse_pos)
 
         if (res == NULL) {
             delete_expression_tree(term_tree);
-            raise_error(NULL, MEMORY_ERROR_CALCULATOR);
+            raise_error(NULL, MEMORY_ERROR);
         }
 
         res->opcode = OP_LBR;
@@ -248,33 +250,37 @@ parse_number(const char *parse_string, long long *parse_pos)
         res->right = calloc(1, sizeof(*res->right));
         res->right->opcode = OP_RBR;
         *parse_pos += 1;
-    } else if (isalpha(parse_string[*parse_pos])) {
-        const char *runner = parse_string + *parse_pos;
-        long long length = 0;
-        while (isalpha(*runner++)) {
+    } else if (isalpha(parse_string[*parse_pos]) || parse_string[*parse_pos] == '_') {
+        const char *runner = parse_string + *parse_pos + 1;
+        long long length = 1;
+        while (isalnum(*runner) || *runner == '_') {
+            ++runner;
             ++length;
+        }
+        if (length > 6) {
+            raise_error(parse_string + *parse_pos, INVALID_VAR);
         }
         char *name = strndup(parse_string + *parse_pos, length * sizeof(char));
         Variable *variable;
         if ((variable = find_var(name))) {
             free(name);
             name = variable->name;
-        } else if (put_new_var(name, 0) == MEMORY_ERR_VARS) {
+        } else if (put_var(name, 0) == ERR_IN_VAR) {
             free(name);
-            raise_error(NULL, MEMORY_ERROR_CALCULATOR);
+            raise_error(NULL, MEMORY_ERROR);
         }
         *parse_pos += length;
 
         res = calloc(1, sizeof *res);
         if (res == NULL) {
-            raise_error(NULL, MEMORY_ERROR_CALCULATOR);
+            raise_error(NULL, MEMORY_ERROR);
         }
 
         res->opcode = OP_VAR;
         res->name_var = name;
 
     } else {
-        long double number = parse_double(parse_string, parse_pos, &success);
+        double number = parse_double(parse_string, parse_pos, &success);
         if (!success) {
             if (parse_string[*parse_pos] == ')' || !parse_string[*parse_pos]) {
                 raise_error(parse_string + *parse_pos, NO_OPERAND);
@@ -283,7 +289,7 @@ parse_number(const char *parse_string, long long *parse_pos)
         }
         res = calloc(1, sizeof *res);
         if (res == NULL) {
-            raise_error(NULL, MEMORY_ERROR_CALCULATOR);
+            raise_error(NULL, MEMORY_ERROR);
         }
 
         res->opcode = OP_NUM;
@@ -313,7 +319,7 @@ syntax_analyse(const char *str)
     }
 }
 
-static long double
+static double
 exec_calculation(ExpressionTree *tree)
 {
     if (tree == NULL) {
@@ -343,13 +349,6 @@ exec_calculation(ExpressionTree *tree)
         }
         tree->num = tree->left->num / tree->right->num;
         break;
-    case OP_MOD:
-        if (fabsl(tree->right->num) <= 1e-5) {
-            fprintf(stderr, "Division by zero!\n");
-            longjmp(ErrJump, DIVISION_BY_ZERO);
-        }
-        tree->num = (long long) tree->left->num % (long long) tree->right->num;
-        break;
     case OP_RBR:
         return 0;
     case OP_LBR:
@@ -373,7 +372,7 @@ exec_calculation(ExpressionTree *tree)
     return tree->num;
 }
 
-long double
+double
 calculate(ExpressionTree *tree, int *success)
 {
     if (setjmp(ErrJump) == 0) {

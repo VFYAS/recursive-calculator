@@ -6,16 +6,15 @@ enum
     INIT_AMOUNT = 16
 };
 
-enum Errors
+enum
 {
-    MEMORY_ERR_VARS = 0x01,
-    INVALID_NAME = 0x02
+    ERR_IN_VAR = -1
 };
 
 typedef struct
 {
     char *name;
-    long double value;
+    double value;
 } Variable;
 
 typedef struct
@@ -25,16 +24,13 @@ typedef struct
     long long last;
 } VariableArray;
 
-int
-reset_var(const char *name, long double value);
-
 void
 delete_vars(void);
 
 int
-put_new_var(char *name, long double value);
+put_var(char *name, double value);
 
-long double
+double
 get_var(const char *name);
 
 int
@@ -43,7 +39,7 @@ init_vars(void);
 Variable *
 find_var(const char *name);
 
-const char **
-get_var_names(long long *length);
+long long
+request_vars(void);
 
 #endif

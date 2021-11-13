@@ -11,7 +11,6 @@ enum Operation
     OP_DIV,
     OP_LBR,
     OP_RBR,
-    OP_MOD,
     OP_VAR,
     INV_OP
 };
@@ -22,7 +21,7 @@ typedef struct ExpressionTree
     struct ExpressionTree *left;
     struct ExpressionTree *right;
     char *name_var;
-    long double num;
+    double num;
 } ExpressionTree;
 
 enum ErrorCode
@@ -34,13 +33,14 @@ enum ErrorCode
     INVALID_OPERAND = 0x05,
     DIVISION_BY_ZERO = 0x06,
     INTERNAL_ERROR = 0x07,
-    MEMORY_ERROR_CALCULATOR = 0x08
+    MEMORY_ERROR = 0x08,
+    INVALID_VAR = 0x09
 };
 
 void
 delete_expression_tree(ExpressionTree *parse_tree);
 
-long double
+double
 calculate(ExpressionTree *tree, int *success);
 
 ExpressionTree *

@@ -85,7 +85,7 @@ find_var(const char *name)
 static int
 cmpstring(const void *a, const void *b)
 {
-    return strcmp(((Variable *) a)->name, ((Variable *) b)->name);
+    return strcmp((const char *) ((const Variable *) a)->name, (const char *) ((const Variable *) b)->name);
 }
 
 long long

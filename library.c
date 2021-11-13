@@ -92,7 +92,7 @@ parse_double(const char *parse_string, long long *pos, int *success)
     double res;
     char *end;
     res = strtod(parse_string + *pos, &end);
-    if ((*parse_string != '\0') && (end != parse_string + *pos) && (errno != ERANGE)) {
+    if ((*parse_string != '\0') && (end != parse_string + *pos) && (errno != ERANGE) && (!isalnum(*end))) {
         *pos = end - parse_string;
         *success = 1;
         return res;
@@ -257,7 +257,7 @@ parse_number(const char *parse_string, long long *parse_pos)
             ++runner;
             ++length;
         }
-        if (length > 6) {
+        if (length > MAX_VAR_NAME_LEN) {
             raise_error(parse_string + *parse_pos, INVALID_VAR);
         }
         char *name = strndup(parse_string + *parse_pos, length * sizeof(char));
@@ -344,7 +344,7 @@ exec_calculation(ExpressionTree *tree)
         break;
     case OP_DIV:
         if (fabsl(tree->right->num) <= 1e-5) {
-            fprintf(stderr, "Division by zero!\n");
+            fprintf(stderr, "Error while calculating: Division by zero!\n");
             longjmp(ErrJump, DIVISION_BY_ZERO);
         }
         tree->num = tree->left->num / tree->right->num;

@@ -24,6 +24,11 @@ main(void)
     int c;
     long long idx = 0, str_len = INIT_STR_SIZE;
     c = fgetc(stdin);
+    if (c == EOF) {
+        free(str);
+        fprintf(stderr, "Empty statement!\n");
+        exit(EXPR_ERROR);
+    }
     while (c != EOF) {
         do {
             if (idx == str_len) {

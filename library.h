@@ -37,6 +37,11 @@ enum ErrorCode
     INVALID_VAR = 0x09
 };
 
+enum
+{
+    MAX_VAR_NAME_LEN = 6
+};
+
 void
 delete_expression_tree(ExpressionTree *parse_tree);
 

@@ -56,7 +56,7 @@ build_library: $(LIBRARY_OBJ)
 build_library_val: $(LIBRARY)
 	$(CC) -c -o $(LIBRARY_OBJ) $< $(CVALFLAGS)
 
-run: $(PROGRAM)
+run: all
 	./$<
 
 valcheck: valcomp 

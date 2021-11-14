@@ -9,6 +9,15 @@
 #include <setjmp.h>
 
 static jmp_buf ErrJump;
+// Error handle
+
+/* Approximate Backus–Naur form, assuming <real
+ * number> and <variable> already defined:
+ *
+ * <TERM> ::= <FACTOR> "+" <TERM> | <FACTOR> "-" <TERM> | <FACTOR>
+ * <FACTOR> ::= <ELEM> "*" <FACTOR> | <ELEM> "/" <FACTOR> | <ELEM>
+ * <ELEM> ::= <real number> | "(" <TERM> ")" | <variable>
+ */
 
 static ExpressionTree *
 parse_term(const char *parse_string, long long *parse_pos);
@@ -17,27 +26,32 @@ static ExpressionTree *
 parse_factor(const char *parse_string, long long *parse_pos);
 
 static ExpressionTree *
-parse_number(const char *parse_string, long long *parse_pos);
+parse_elem(const char *parse_string, long long *parse_pos);
 
 static double
 parse_double(const char *parse_string, long long *pos, int *success);
+// parses real number
 
 static enum Operation
 parse_op(const char *parse_string, long long *parse_pos);
+// defines which operation is next
 
 static _Noreturn void
 raise_error(const char *parse_string, enum ErrorCode ErrorCode);
+// prints the error message to stderr and jumps to the main function
 
 static void
 skip_spaces(const char *parse_string, long long *pos);
 
 static double
 exec_calculation(ExpressionTree *tree);
-
+// runs calculation recursively
 
 static ExpressionTree *parsing_tree = NULL;
+// pointer to the tree of the whole expression
 
 static ExpressionTree *separate_tree = NULL;
+// pointer to the one "hanging" tree node
 
 
 static _Noreturn void
@@ -138,7 +152,7 @@ static ExpressionTree *
 parse_factor(const char *parse_string, long long *parse_pos)
 {
     skip_spaces(parse_string, parse_pos);
-    ExpressionTree *tree1 = parse_number(parse_string, parse_pos);
+    ExpressionTree *tree1 = parse_elem(parse_string, parse_pos);
     long long prev_pos = *parse_pos;
     while (1) {
         enum Operation op = parse_op(parse_string, parse_pos);
@@ -161,7 +175,7 @@ parse_factor(const char *parse_string, long long *parse_pos)
         }
 
         separate_tree = tree1;
-        ExpressionTree *tree2 = parse_number(parse_string, parse_pos);
+        ExpressionTree *tree2 = parse_elem(parse_string, parse_pos);
         ExpressionTree *parent = calloc(1, sizeof *parent);
         if (parent == NULL) {
             delete_expression_tree(tree2);
@@ -223,7 +237,7 @@ parse_term(const char *parse_string, long long *parse_pos)
 }
 
 static ExpressionTree *
-parse_number(const char *parse_string, long long *parse_pos)
+parse_elem(const char *parse_string, long long *parse_pos)
 {
     int success;
     ExpressionTree *res;
@@ -314,7 +328,7 @@ syntax_analyse(const char *str)
             }
         }
         return parsing_tree;
-    } else {
+    } else { // if error occurred
         return NULL;
     }
 }
@@ -378,7 +392,7 @@ calculate(ExpressionTree *tree, int *success)
     if (setjmp(ErrJump) == 0) {
         *success = 1;
         return exec_calculation(tree);
-    } else {
+    } else { // if error occurred
         *success = 0;
         return 0;
     }

@@ -8,6 +8,7 @@ static VariableArray variable_array;
 
 static int
 cmpstring(const void *a, const void *b);
+// comparator to sort variables in ascending order of names
 
 int
 put_var(char *name, double value)
@@ -16,8 +17,8 @@ put_var(char *name, double value)
     if ((found = find_var(name)) == NULL) {
         if (variable_array.last == variable_array.length) {
             variable_array.length <<= 1;
-            variable_array.variables = realloc(variable_array.variables, variable_array.length
-                                                                         * sizeof(*variable_array.variables));
+            variable_array.variables = realloc(variable_array.variables,
+                                               variable_array.length * sizeof(*variable_array.variables));
             if (variable_array.variables == NULL) {
                 delete_vars();
                 return ERR_IN_VAR;

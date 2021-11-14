@@ -25,6 +25,7 @@ main(void)
     long long idx = 0, str_len = INIT_STR_SIZE;
     c = fgetc(stdin);
     if (c == EOF) {
+        // if the expression is empty
         free(str);
         fprintf(stderr, "Empty statement!\n");
         exit(EXPR_ERROR);
@@ -46,6 +47,7 @@ main(void)
             do {
                 long long len = request_vars();
                 if (len == -1 || errno == ENOMEM) {
+                    // if error occurred while reading variables' values
                     delete_expression_tree(tree);
                     delete_vars();
                     free(str);
@@ -54,6 +56,7 @@ main(void)
                 int success;
                 double result = calculate(tree, &success);
                 if (success == 0) {
+                    // if error in calculations occurred
                     delete_expression_tree(tree);
                     delete_vars();
                     free(str);

@@ -9,10 +9,10 @@ enum Operation
     OP_MINUS,
     OP_MULT,
     OP_DIV,
-    OP_LBR,
-    OP_RBR,
-    OP_VAR,
-    INV_OP
+    OP_LBR, //opening bracket
+    OP_RBR, //closing bracket
+    OP_VAR, //variable
+    INV_OP //invalid operation
 };
 
 typedef struct ExpressionTree
@@ -44,11 +44,14 @@ enum
 
 void
 delete_expression_tree(ExpressionTree *parse_tree);
+// frees up the memory used by calculator
 
 double
 calculate(ExpressionTree *tree, int *success);
+// calculates the value by the specified expression tree
 
 ExpressionTree *
 syntax_analyse(const char *str);
+// analyses the given expression, converting it into tree
 
 #endif
